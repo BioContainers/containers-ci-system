@@ -1,0 +1,3 @@
+[submodule "kubernetes-init"]
+	path = kubernetes-init
+	url = https://github.com/BioContainers/kubernetes-init
