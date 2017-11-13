@@ -1,0 +1,195 @@
+#cloud-config
+ 
+
+apt_update: true
+apt_upgrade: true
+
+packages:
+        - apache2
+        - build-essential 
+        - libxml2-dev
+        - git
+
+runcmd:
+        - a2enmod proxy
+        - a2enmod proxy_http
+        - a2enmod proxy_ajp
+        - a2enmod rewrite
+        - a2enmod deflate
+        - a2enmod headers
+        - a2enmod proxy_balancer
+        - a2enmod proxy_connect
+        - a2enmod proxy_html
+        - a2enmod xml2enc
+        - a2enmod ssl
+        - git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt 
+        - ( crontab -l | grep -v "update_lets_encrypt_certs.sh" ; echo "30 2 * * 1 /usr/local/bin/update_lets_encrypt_certs.sh" ) | crontab -
+
+write_files:
+        - path: /usr/local/bin/update_lets_encrypt_certs.sh
+          content: |-
+              /bin/echo "==========================================" >> /var/log/le-renew.log
+              /bin/date +%Y-%m-%d:%H:%M:%S >> /var/log/le-renew.log
+              /bin/echo "==========================================" >> /var/log/le-renew.log
+              /usr/sbin/service apache2 stop >> /var/log/le-renew.log
+              /opt/letsencrypt/letsencrypt-auto renew >> /var/log/le-renew.log
+              /usr/sbin/service apache2 start >> /var/log/le-renew.log
+              /bin/echo "==========================================" >> /var/log/le-renew.log
+              /bin/echo "==========================================" >> /var/log/le-renew.log
+        - path: /etc/apache2/sites-enabled/000-default.conf
+          content: |-
+                   # For docker registryi UI, only availble from EBI
+                   <VirtualHost *:30770>
+                       ProxyPreserveHost On
+                   
+                       SSLProxyEngine On
+                       RequestHeader set Front-End-Https "On"
+                   #    <Proxy balancer://myset>
+                   #       BalancerMember http://192.168.0.95:30700
+                   #       BalancerMember http://192.168.0.98:30700
+                   #       ProxySet lbmethod=bytraffic
+                   #    </Proxy>
+                   
+                       ProxyPass / http://192.168.0.95:30770/
+                       #ProxyPass / balancer://myset/
+                       ProxyPassReverse / http://192.168.0.95:30770/
+                       #ProxyPassReverse / balancer://myset/
+                   
+                       ServerName phenomenal-h2020.eu
+                   </VirtualHost>
+                   <VirtualHost *:80>
+                       ProxyPreserveHost On
+                   
+                       SSLProxyEngine On
+                       RequestHeader set Front-End-Https "On"
+                       RedirectMatch ^/$ /home/
+                       RedirectMatch ^/jenkins$ https://biocontainers.pro/jenkins/
+                   
+                       ProxyPass /jenkins http://192.168.0.95:30752/jenkins nocanon
+                       ProxyPassReverse /jenkins http://192.168.0.95:30752/jenkins
+                   
+                       ProxyRequests Off
+                       AllowEncodedSlashes NoDecode
+                   
+                       ServerName biocontainers.pro
+                   </VirtualHost>
+                   <IfModule mod_headers.c>
+                      SetEnvIfNoCase Origin "https?://(www\.)?(portal\.biocontainers\.pro|localhost)(:3000)?$" ACAO=$0
+                      Header set Access-Control-Allow-Origin %{ACAO}e env=ACAO
+                   </IfModule>
+                   
+                   <VirtualHost *:443>
+                       ProxyPreserveHost On
+                       ProxyRequests off
+                       SSLEngine On
+                       SSLProxyEngine On
+                       SSLCertificateFile /etc/letsencrypt/live/biocontainers.pro/cert.pem
+                       SSLCertificateChainFile /etc/letsencrypt/live/biocontainers.pro/chain.pem
+                       SSLCertificateKeyFile /etc/letsencrypt/live/biocontainers.pro/privkey.pem
+                       RequestHeader set Front-End-Https "On"
+                   
+                   
+                       <Proxy http://192.168.0.95:30752/jenkins*>
+                         Order deny,allow
+                         Allow from all
+                       </Proxy>
+                   
+                       ProxyPass /jenkins http://192.168.0.95:30752/jenkins nocanon
+                       ProxyPassReverse /jenkins http://192.168.0.95:30752/jenkins
+                   
+                       AllowEncodedSlashes NoDecode
+                   
+                       ServerName biocontainers.eu
+                   </VirtualHost>                   
+                   <VirtualHost *:443>
+                       ProxyPreserveHost On
+                       ProxyRequests off
+                       SSLEngine On
+                       SSLProxyEngine On
+                       SSLCertificateFile /etc/letsencrypt/live/docker-registry.biocontainers.pro/cert.pem
+                       SSLCertificateChainFile /etc/letsencrypt/live/docker-registry.biocontainers.pro/chain.pem
+                       SSLCertificateKeyFile /etc/letsencrypt/live/docker-registry.biocontainers.pro/privkey.pem
+                       RequestHeader set Front-End-Https "On"
+                       ProxyPass / http://192.168.0.95:30751/
+                       ProxyPassReverse / http://192.168.0.95:30751/
+                           <Location />
+                                   Order deny,allow
+                                   Allow from all
+                                   AuthName "Registry Authentication"
+                                   AuthType basic
+                                   AuthUserFile "/etc/apache2/htpasswd/registry-htpasswd"
+                                   <RequireAny>
+                                      Require method GET HEAD
+                                      Require valid-user
+                                   </RequireAny>
+                           </Location>
+                           # Allow ping and users to run unauthenticated.
+                           <Location /v1/_ping>
+                                   Satisfy any
+                                   Allow from all
+                           </Location>
+                           # Allow ping and users to run unauthenticated.
+                           <Location /_ping>
+                                  Satisfy any
+                                  Allow from all
+                           </Location>
+                   
+                       ServerName containers-registry.biocontainers.pro
+                   </VirtualHost>
+                   <VirtualHost *:443>
+                       ProxyPreserveHost On
+                       ProxyRequests off
+                       SSLEngine On
+                       SSLProxyEngine On
+                       SSLCertificateFile /etc/letsencrypt/live/biocontainers.pro/cert.pem
+                       SSLCertificateChainFile /etc/letsencrypt/live/biocontainers.pro/chain.pem
+                       SSLCertificateKeyFile /etc/letsencrypt/live/biocontainers.pro/privkey.pem
+                       RequestHeader set Front-End-Https "On"
+                       Header always set "Docker-Distribution-Api-Version" "registry/2.0"
+                       Header onsuccess set "Docker-Distribution-Api-Version" "registry/2.0"
+                       RequestHeader set X-Forwarded-Proto "https"
+                       ProxyPass /error/ !
+                       ProxyPass /v2 http://192.168.0.95:30751/v2
+                       ProxyPassReverse /v2 http://192.168.0.95:30751/v2
+                           <Location />
+                                   Order deny,allow
+                                   Allow from all
+                                   AuthName "Registry Authentication"
+                                   AuthType basic
+                                   AuthUserFile "/etc/apache2/htpasswd/registry-htpasswd"
+                                   <RequireAny>
+                                      Require method GET HEAD
+                                      Require valid-user
+                                   </RequireAny>
+                           </Location>
+                           # Allow ping and users to run unauthenticated.
+                           <Location /v1/_ping>
+                                   Satisfy any
+                                   Allow from all
+                           </Location>
+                           # Allow ping and users to run unauthenticated.
+                           <Location /_ping>
+                                  Satisfy any
+                                  Allow from all
+                           </Location>
+                   
+                       ServerName containers-registry.biocontainers.pro
+                   </VirtualHost>
+
+        - path: /etc/apt/apt.conf.d/50unattended-upgrades
+          content: |-
+                  Unattended-Upgrade::Allowed-Origins {
+                    "${distro_id}:${distro_codename}-security";
+                  };
+                  Unattended-Upgrade::Package-Blacklist {
+                  };
+                  Unattended-Upgrade::Remove-Unused-Dependencies "true";
+                  Unattended-Upgrade::Automatic-Reboot "true";
+                  Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+
+
+
+runcmd:
+        - service apache2 restart
+        - chmod a+x /usr/local/bin/update_lets_encrypt_certs.sh
+        - unattended-upgrade -v
