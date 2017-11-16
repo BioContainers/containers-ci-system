@@ -45,17 +45,17 @@ write_files:
                        SSLProxyEngine On
                        RequestHeader set Front-End-Https "On"
                    #    <Proxy balancer://myset>
-                   #       BalancerMember http://192.168.0.95:30700
-                   #       BalancerMember http://192.168.0.98:30700
+                   #       BalancerMember http://cluster.local:30700
+                   #       BalancerMember http://cluster.local:30700
                    #       ProxySet lbmethod=bytraffic
                    #    </Proxy>
                    
-                       ProxyPass / http://192.168.0.95:30770/
+                       ProxyPass / http://cluster.local:30770/
                        #ProxyPass / balancer://myset/
-                       ProxyPassReverse / http://192.168.0.95:30770/
+                       ProxyPassReverse / http://cluster.local:30770/
                        #ProxyPassReverse / balancer://myset/
                    
-                       ServerName phenomenal-h2020.eu
+                       ServerName biocontainers.pro
                    </VirtualHost>
                    <VirtualHost *:80>
                        ProxyPreserveHost On
@@ -63,10 +63,10 @@ write_files:
                        SSLProxyEngine On
                        RequestHeader set Front-End-Https "On"
                        RedirectMatch ^/$ /home/
-                       RedirectMatch ^/jenkins$ https://biocontainers.pro/jenkins/
+                       RedirectMatch ^/jenkins$ https://jenkins.biocontainers.pro
                    
-                       ProxyPass /jenkins http://192.168.0.95:30752/jenkins nocanon
-                       ProxyPassReverse /jenkins http://192.168.0.95:30752/jenkins
+                       ProxyPass /jenkins http://cluster.local:30752/jenkins nocanon
+                       ProxyPassReverse /jenkins http://cluster.local:30752/jenkins
                    
                        ProxyRequests Off
                        AllowEncodedSlashes NoDecode
@@ -89,13 +89,13 @@ write_files:
                        RequestHeader set Front-End-Https "On"
                    
                    
-                       <Proxy http://192.168.0.95:30752/jenkins*>
+                       <Proxy http://cluster.local:30752/jenkins*>
                          Order deny,allow
                          Allow from all
                        </Proxy>
                    
-                       ProxyPass /jenkins http://192.168.0.95:30752/jenkins nocanon
-                       ProxyPassReverse /jenkins http://192.168.0.95:30752/jenkins
+                       ProxyPass /jenkins http://cluster.local:30752/jenkins nocanon
+                       ProxyPassReverse /jenkins http://cluster.local:30752/jenkins
                    
                        AllowEncodedSlashes NoDecode
                    
@@ -110,8 +110,8 @@ write_files:
                        SSLCertificateChainFile /etc/letsencrypt/live/docker-registry.biocontainers.pro/chain.pem
                        SSLCertificateKeyFile /etc/letsencrypt/live/docker-registry.biocontainers.pro/privkey.pem
                        RequestHeader set Front-End-Https "On"
-                       ProxyPass / http://192.168.0.95:30751/
-                       ProxyPassReverse / http://192.168.0.95:30751/
+                       ProxyPass / http://cluster.local:30751/
+                       ProxyPassReverse / http://cluster.local:30751/
                            <Location />
                                    Order deny,allow
                                    Allow from all
@@ -149,8 +149,8 @@ write_files:
                        Header onsuccess set "Docker-Distribution-Api-Version" "registry/2.0"
                        RequestHeader set X-Forwarded-Proto "https"
                        ProxyPass /error/ !
-                       ProxyPass /v2 http://192.168.0.95:30751/v2
-                       ProxyPassReverse /v2 http://192.168.0.95:30751/v2
+                       ProxyPass /v2 http://docker-registry.local:30751/v2
+                       ProxyPassReverse /v2 http://docker-registry.local:30751/v2
                            <Location />
                                    Order deny,allow
                                    Allow from all
@@ -193,3 +193,4 @@ runcmd:
         - service apache2 restart
         - chmod a+x /usr/local/bin/update_lets_encrypt_certs.sh
         - unattended-upgrade -v
+        - echo "192.168.0.12 cluster.local" >> /etc/hosts

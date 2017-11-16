@@ -35,9 +35,9 @@ done
 
 if [ -z $IMAGENAME ]
 then
-   IMAGEID=`nova image-list | grep ubuntu_trusty | awk -F' \| ' '{ print $2 }'`
+   IMAGEID=`glance image-list | grep ubuntu_trusty | awk -F' \| ' '{ print $2 }'`
 else
-   IMAGEID=$(nova image-list | grep $IMAGENAME | awk -F' \| ' '{ print $2 }')
+   IMAGEID=$(glance image-list | grep $IMAGENAME | awk -F' \| ' '{ print $2 }')
 fi
 
 FLAVOUR=`nova flavor-list | grep 's1.nano' | awk -F' \| ' '{ print $2 }'`
