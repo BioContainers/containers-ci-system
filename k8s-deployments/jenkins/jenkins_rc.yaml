@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: jenkins 
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+         app: jenkins
+    spec:
+      containers:
+      - name: jenkins
+        securityContext:
+          runAsUser: 0
+        image: jenkins/jenkins:2.73.1-alpine 
+        env:
+          - name: "JENKINS_HOME"
+            value: "/opt/pvc-mount/jenkins/data"
+          - name: "JENKINS_OPTS"
+            value: "--prefix=/jenkins"
+        ports:
+          - containerPort: 8080
+          - containerPort: 50000
+        volumeMounts:
+          - mountPath: "/opt/pvc-mount"
+            name: cinder-jenkins
+      volumes:
+        - name: cinder-jenkins 
+          persistentVolumeClaim:
+              claimName: cinder-jenkins-pvc
