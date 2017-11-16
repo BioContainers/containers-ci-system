@@ -1,0 +1,16 @@
+version: 0.1
+log:
+  level: info 
+  formatter: text    
+storage:
+  s3:
+     accesskey: 
+     secretkey: 
+     region: eu-west-1
+     regionendpoint: 
+     secure: true
+     bucket: 
+  delete:
+     enabled: true
+http:
+  addr: 0.0.0.0:5000 
