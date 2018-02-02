@@ -1,0 +1,91 @@
+#cloud-config
+# 
+
+apt_update: true
+apt_upgrade: true
+
+# follows https://docs.docker.com/installation/ubuntulinux/
+
+write_files:
+         - path: /usr/local/bin/delete_docker_images.sh
+           permissions: '0755'
+           content: |
+              #!/bin/bash
+              docker rm $(docker ps -a -q)
+              docker rmi $(docker images -q)
+              docker rmi -f $(docker images | grep 'biocontainers' | awk '{ print $3 }' | sort -u)
+
+         - path: /etc/apt/apt.conf.d/50unattended-upgrades
+           content: |
+                 Unattended-Upgrade::Allowed-Origins {
+                         "${distro_id}:${distro_codename}-security";
+                         "${distro_id}:${distro_codename}-updates";
+                 };
+                 Unattended-Upgrade::Remove-Unused-Dependencies "true";
+                 Unattended-Upgrade::Automatic-Reboot-Time "04:00";
+
+         - path: /etc/docker/daemon.json
+           content: |
+                 {
+                   "insecure-registries" : ["docker-registry.local:30750"]
+                 }
+
+runcmd:
+        #- wget -O /var/cache/apt/archives/vagrant_1.7.4.deb https://releases.hashicorp.com/vagrant/1.7.4/vagrant_1.7.4_x86_64.deb
+        - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+        - sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+        - apt-get update -y
+        - apt-get install -y apt-transport-https ca-certificates curl software-properties-common git openjdk-8-jdk unzip
+        - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+        - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+        - apt-get update -y
+        - apt-get install -y docker-ce=17.06.2~ce-0~ubuntu
+        #- curl -sSL https://www.virtualbox.org/download/oracle_vbox.asc | apt-key add -
+        #- echo "deb http://download.virtualbox.org/virtualbox/debian trusty contrib" >> /etc/apt/sources.list.d/virtualbox.list
+        #- apt-key update && apt-get update && apt-get install -y virtualbox-5.0
+        #- docker pull jenkins
+        #- /sbin/vboxconfig
+        #- add ubuntu to docker group, execute newgrp to refresh
+        - groupadd docker
+        - usermod -aG docker ubuntu
+        # Add docker registry local host:
+        - echo "LOCALREGISTRY_IP docker-registry.local" >> /etc/hosts
+        #- mkdir -p /etc/docker/certs.d/docker-registry.local:30751
+        #- cp /home/ubuntu/registry_cacert.crt /etc/docker/certs.d/docker-registry.local:50000/
+        # Add docker options for insecure local registry
+        - echo 'DOCKER_OPTS="--insecure-registry docker-registry.local:30751"' >> /etc/default/docker
+        - systemctl enable docker
+        #- service docker restart
+        # Have crontab for deleting docker images everynight.
+        - ( crontab -l | grep -v "30 2 * * * /usr/local/bin/delete_docker_images.sh > /var/log/delete_docker_images.log" ; echo "30 2 * * *  /usr/local/bin/delete_docker_images.sh > /var/log/delete_docker_images.log" ) | crontab -
+        # Packer
+        #- wget https://releases.hashicorp.com/packer/0.10.1/packer_0.10.1_linux_amd64.zip
+        #- unzip packer_0.10.1_linux_amd64.zip
+        #- cp packer /usr/local/bin/packer
+        #- chmod a+x /usr/local/bin/packer
+        # Helm
+        #- wget http://storage.googleapis.com/kubernetes-helm/helm-v2.0.0-beta.2-linux-amd64.tar.gz
+        #- tar -xf helm-v2.0.0-beta.2-linux-amd64.tar.gz
+        - wget https://kubernetes-helm.storage.googleapis.com/helm-v2.6.1-linux-amd64.tar.gz
+        - tar -xf helm-v2.6.1-linux-amd64.tar.gz
+        - mv linux-amd64/helm /usr/bin/
+        - rm -rf linux-amd64
+        - helm init
+        - helm repo add phenomenal-helm https://phnmnl.github.io/helm-charts/
+        # Kubectl
+        #- wget https://storage.googleapis.com/kubernetes-release/release/v1.4.3/bin/linux/amd64/kubectl
+        - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+        - chmod +x kubectl
+        - mv kubectl /usr/local/bin/
+        # Ansible
+        #- apt-get install software-properties-common
+        - apt-add-repository ppa:ansible/ansible
+        - apt-get update -y
+        - apt-get install -y ansible
+        # Clean up
+        - apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+        - unattended-upgrade
+
+
+
+
